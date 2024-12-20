@@ -1,9 +1,10 @@
 use std::any::type_name;
 use std::fs::{File, OpenOptions};
-use std::io::{self, Write, Read, Seek, SeekFrom, BufReader};
+use std::io::{self, Write, Read, Seek, SeekFrom, BufReader,BufRead};
 use std::vec::Vec;
 use std::fmt::Write as FmtWrite;
 use std::{clone, str};
+use serde::{Serialize, Deserialize};
 
 const MAX_SYMBOL_INDEX: usize = 100;  // 定义符号表的容量
 const MAX_CODE_INDEX: usize = 200;    // 中间代码数组的容量
@@ -52,6 +53,7 @@ struct Symbol {
 }
 
 #[derive(Debug)]
+#[derive(Serialize, Deserialize)]
 struct Code {
     opt: String,  // 操作码
     operand: i32,  // 操作数
@@ -76,8 +78,8 @@ struct Compiler {
     es: i32,                     // 错误码
     root: Option<Node>,          // 语法树根节点
     Lastdefinedfunction: String,
-            numofvariable:usize,
-            offset:i32,
+    numofvariable:usize,
+    offset:i32,
 }
 
 
@@ -252,15 +254,17 @@ impl Compiler {
         };
 
         // 输出语法树
-        self.output_tree(self.root.as_ref().unwrap(), 0);
+        // let node = self.root.as_ref().unwrap();
+        // self.output_tree(&node, 0);
+        if let Some(node) = self.root.take() {
+            self.output_tree(&node, 0);
+        }
 
         es
     }
 
     fn program(&mut self) -> i32 {
-        let mut es;
-
-        
+        let mut es: i32;
         
         // 读取token
         
