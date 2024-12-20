@@ -5,7 +5,7 @@ use std::vec::Vec;
 use std::fmt::Write as FmtWrite;
 use std::{clone, str};
 use serde::{Serialize, Deserialize};
-
+use bincode;
 const MAX_SYMBOL_INDEX: usize = 100;  // 定义符号表的容量
 const MAX_CODE_INDEX: usize = 200;    // 中间代码数组的容量
 
