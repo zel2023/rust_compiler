@@ -1,5 +1,6 @@
+use std::any::type_name;
 use std::fs::{File, OpenOptions};
-use std::io::{self, Write, Read};
+use std::io::{self, Write, Read, Seek, SeekFrom, BufReader};
 use std::vec::Vec;
 use std::fmt::Write as FmtWrite;
 use std::{clone, str};
@@ -8,9 +9,18 @@ const MAX_SYMBOL_INDEX: usize = 100;  // 定义符号表的容量
 const MAX_CODE_INDEX: usize = 200;    // 中间代码数组的容量
 
 #[derive(Debug)]
+#[derive(Clone)]
 enum CategorySymbol {
     Variable,
     Function,
+}
+
+fn are_kinds_equal(kind1: CategorySymbol, kind2: CategorySymbol) -> bool {
+    match (kind1, kind2) {
+        (CategorySymbol::Variable, CategorySymbol::Variable) => true,
+        (CategorySymbol::Function, CategorySymbol::Function) => true,
+        _ => false,
+    }
 }
 
 #[derive(Debug)]
@@ -70,6 +80,8 @@ struct Compiler {
             offset:i32,
 }
 
+
+
 fn fscanf_token(tokenfile: &str) -> io::Result<(String, String)> {
     // 定义 token 和 token1
     let mut token = String::new();
@@ -126,7 +138,7 @@ impl Compiler {
 
     fn add_child(&mut self, n: &mut Node) {
         //let mut str = self.token1.clone();
-        let child_node = Node::new(str);
+        let child_node = Node::new(&self.token1);
         n.add_child(child_node);
     }
 
@@ -219,6 +231,8 @@ impl Compiler {
         // 写入二进制文件
         use std::io::Write;
         let bytes = bincode::serialize(&self.codes).unwrap();
+
+
         fp_code_binary.write_all(&bytes).unwrap();
 
         // 生成语法树文件
@@ -244,7 +258,7 @@ impl Compiler {
     }
 
     fn program(&mut self) -> i32 {
-        let mut es = 0;
+        let mut es;
 
         
         
@@ -346,7 +360,7 @@ impl Compiler {
 
 
     fn fun_declaration(&mut self, root: &mut Node) -> i32 {
-        let mut es = 0;
+        let mut es;
         let mut child_node = Node::new("<fun_declaration>");
         root.add_child(child_node);
 
@@ -354,10 +368,13 @@ impl Compiler {
             es = 2;
             return es;
         }
-        self.add_child(&mut child_node);
-        self.insert_symbol("function", &self.token1); // 将函数名插入符号表
 
-        let mut temp = String::from(&self.token1);
+        child_node = Node::new("<fun_declaration>");
+        self.add_child(&mut child_node);
+        let temp_token = self.token1.clone();
+        self.insert_symbol(CategorySymbol::Function, &temp_token); // 将函数名插入符号表
+
+        let temp = String::from(&self.token1);
         let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
@@ -372,20 +389,22 @@ impl Compiler {
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
-        let mut fun_pos = 0;
-        self.symbol[self.symbol_index - 1].address = self.codes_index; // 将函数体的入口地址填入符号表中的地址
+        //let mut fun_pos;
+        self.symbol[self.symbol_index - 1].address = self.codes_index as i32; // 将函数体的入口地址填入符号表中的地址
         es = self.parameter_list(&mut child_node);
         if es > 0 {
             return es;
         }
 
         // es = self.lookup(&temp, &mut fun_pos);
+        let mut symbol_pos = 0;
         es=self.lookup(&temp, &mut symbol_pos, &self.Lastdefinedfunction);
         if es > 0 {
             return es;
         }
 
-        self.symbol[fun_pos].var_num = self.num_of_variable;
+        let mut symbol_pos_usize = symbol_pos as usize;
+        self.symbol[symbol_pos_usize].var_num = self.numofvariable as i32;
         if self.token != ")" {
             es = 6;
             return es;
@@ -401,23 +420,25 @@ impl Compiler {
     }
 
     fn main_declaration(&mut self, root: &mut Node) -> i32 {
-        let mut es = 0;
+        let mut es;
         let mut child_node = Node::new("<main_declaration>");
         root.add_child(child_node);
 
-        self.insert_symbol("function", "main");
+        self.insert_symbol(CategorySymbol::Function, "main");
 
         if self.token != "(" {
             es = 5;
             return es;
         }
+
+        child_node = Node::new("<main_declaration>");
         self.add_child(&mut child_node);
 
         let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
-        self.symbol[self.symbol_index - 1].address = self.codes_index; // 填写函数体地址
+        self.symbol[self.symbol_index - 1].address = self.codes_index as i32; // 填写函数体地址
         es = self.parameter_list(&mut child_node);
 
         if es > 0 {
@@ -430,7 +451,7 @@ impl Compiler {
         }
         self.add_child(&mut child_node);
 
-        self.codes[0].operand = self.codes_index; // 设置代码跳转目标
+        self.codes[0].operand = self.codes_index as i32; // 设置代码跳转目标
 
         let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
@@ -506,7 +527,7 @@ impl Compiler {
 
     // // <declaration_stat> -> int ID;
     fn declaration_stat(&mut self, root: &mut Node) -> i32 {
-        let mut es = 0;
+        let es;
         let mut child_node = Node::new("<declaration_stat>");
         root.add_child(child_node);
 
@@ -522,7 +543,8 @@ impl Compiler {
             return 3; // 错误：不是标识符
         }
 
-        es = self.insert_symbol("variable", &self.token1); // 插入符号表
+        let temp_token = self.token1.clone();
+        es = self.insert_symbol(CategorySymbol::Variable, &temp_token); // 插入符号表
         child_node = Node::new("<declaration_stat>");
         self.add_child(&mut child_node);
 
@@ -606,13 +628,14 @@ impl Compiler {
 
     // // <if_stat> -> if '(' <expr> ')' <statement> [else <statement>]
     fn if_stat(&mut self, root: &mut Node) -> i32 {
-        let mut es = 0;
-        let mut cx1;
-        let mut cx2;
+        let mut es;
+        let  cx1;
+        let  cx2;
 
         let mut child_node = Node::new("<if_stat>");
         root.add_child(child_node);
 
+        child_node = Node::new("<if_stat>");
         self.add_child(&mut child_node);
 
         // 读取 token
@@ -654,7 +677,7 @@ impl Compiler {
         self.codes[self.codes_index].opt = "BR".to_string();
         cx2 = self.codes_index;
         self.codes_index += 1;
-        self.codes[cx1].operand = self.codes_index;
+        self.codes[cx1].operand = self.codes_index as i32;
 
         // 处理 else 部分
         if self.token == "else" {
@@ -668,15 +691,15 @@ impl Compiler {
             }
         }
 
-        self.codes[cx2].operand = self.codes_index;
+        self.codes[cx2].operand = self.codes_index as i32;
         es
     }
 
     // // <while_stat> -> while '(' <expr> ')' <statement>
     fn while_stat(&mut self, root: &mut Node) -> i32 {
-        let mut es = 0;
-        let mut cx1;
-        let mut cx_entrance;
+        let mut es;
+        let  cx1;
+        let  cx_entrance;
 
         let mut child_node = Node::new("<while_stat>");
         root.add_child(child_node);
@@ -684,6 +707,8 @@ impl Compiler {
         let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
+
+        child_node = Node::new("<while_stat>");
         self.add_child(&mut child_node);
 
         if self.token != "(" {
@@ -720,24 +745,25 @@ impl Compiler {
 
         // 生成跳转指令
         self.codes[self.codes_index].opt = "BR".to_string();
-        self.codes[self.codes_index].operand = cx_entrance;
+        self.codes[self.codes_index].operand = cx_entrance as i32;
         self.codes_index += 1;
-        self.codes[cx1].operand = self.codes_index;
+        self.codes[cx1].operand = self.codes_index as i32;
 
         es
     }
 
     // // <for_stat> -> for '(' <expr> ; <expr> ; <expr> ')' <statement>
     fn for_stat(&mut self, root: &mut Node) -> i32 {
-        let mut es = 0;
-        let mut cx1;
-        let mut cx2;
-        let mut cx_exp2;
-        let mut cx_exp3;
+        let mut es;
+        let  cx1;
+        let  cx2;
+        let  cx_exp2;
+        let  cx_exp3;
 
         let mut child_node = Node::new("<for_stat>");
         root.add_child(child_node);
 
+        child_node = Node::new("<for_stat>");
         self.add_child(&mut child_node);
         let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
@@ -793,9 +819,9 @@ impl Compiler {
         }
 
         self.codes[self.codes_index].opt = "BR".to_string();
-        self.codes[self.codes_index].operand = cx_exp2;
+        self.codes[self.codes_index].operand = cx_exp2 as i32;
         self.codes_index += 1;
-        self.codes[cx2].operand = self.codes_index;
+        self.codes[cx2].operand = self.codes_index as i32;
 
         if self.token != ")" {
             return 6; // 错误：缺少右括号
@@ -811,9 +837,9 @@ impl Compiler {
         }
 
         self.codes[self.codes_index].opt = "BR".to_string();
-        self.codes[self.codes_index].operand = cx_exp3;
+        self.codes[self.codes_index].operand = cx_exp3 as i32;
         self.codes_index += 1;
-        self.codes[cx1].operand = self.codes_index;
+        self.codes[cx1].operand = self.codes_index as i32;
 
         es
     }
@@ -852,10 +878,11 @@ impl Compiler {
     }
 
     fn read_stat(&mut self, root: &mut Node) -> i32 {
-        let mut es = 0;
+        let mut es;
         let mut child_node = Node::new("<read_stat>");
         root.add_child(child_node);
 
+        child_node = Node::new("<read_stat>");
         self.add_child(&mut child_node);
         let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
@@ -872,14 +899,17 @@ impl Compiler {
             return es;
         }
 
-        if self.symbol[symbol_pos].kind != "variable" {
+        if !are_kinds_equal(self.symbol[symbol_pos as usize].kind.clone() , CategorySymbol::Variable) {
             return 35; // 错误：符号不是变量
         }
 
+        let symbol_pos_usize:usize = symbol_pos as usize;
+        let codesIndex_usize:usize = self.codes_index as usize;
+
         self.codes[self.codes_index].opt = "IN".to_string();
         self.codes_index += 1;
-        self.codes[self.codesIndex].opt = "STO".to_string();
-        self.codes[self.codes_index].operand = self.symbol[symbol_pos].address;
+        self.codes[codesIndex_usize].opt = "STO".to_string();
+        self.codes[self.codes_index].operand = self.symbol[symbol_pos_usize].address;
         self.codes_index += 1;
 
         let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
@@ -921,7 +951,7 @@ impl Compiler {
 
     // // <call_stat> -> call ID '(' <variable_list> ')'
     fn call_stat(&mut self, root: &mut Node) -> i32 {
-        let mut es = 0;
+        let mut es;
         let mut symbol_pos = 0;
         let mut child_node = Node::new("<call_stat>");
         root.add_child(child_node);
@@ -932,14 +962,17 @@ impl Compiler {
         if self.token != "ID" {
             return 3; // 错误：缺少标识符
         }
-
+        
+        child_node = Node::new("<call_stat>");
         self.add_child(&mut child_node);
         es = self.lookup(&self.token1, &mut symbol_pos, &self.token1); // 查找函数
         if es > 0 {
             return es;
         }
 
-        if self.symbol[symbol_pos].kind != "function" {
+        let symobol_pos_usize = symbol_pos as usize;
+
+        if !are_kinds_equal(self.symbol[symobol_pos_usize].kind.clone(), CategorySymbol::Function) {
             return 34; // 错误：标识符不是函数
         }
 
@@ -956,9 +989,9 @@ impl Compiler {
         let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
-        if self.symbol[symbol_pos].varnum != 0 {
-            es = self.variable_list(&mut child_node, self.symbol[symbol_pos].varnum);
-            let mut a = self.symbol[symbol_pos].varnum;
+        if self.symbol[symobol_pos_usize].var_num != 0 {
+            es = self.variable_list(&mut child_node, self.symbol[symobol_pos_usize].var_num);
+            let mut a = self.symbol[symobol_pos_usize].var_num;
             while a != 0 {
                 self.codes[self.codes_index].opt = "PAS".to_string();
                 self.codes_index += 1;
@@ -990,7 +1023,7 @@ impl Compiler {
         self.token1 = new_token1;
 
         self.codes[self.codes_index].opt = "CAL".to_string();
-        self.codes[self.codes_index].operand = self.symbol[symbol_pos].address;
+        self.codes[self.codes_index].operand = self.symbol[symobol_pos_usize].address;
         self.codes_index += 1;
 
         es
@@ -1033,57 +1066,80 @@ impl Compiler {
     // // <expression> -> ID = <bool_expr> | <bool_expr>
     fn expression(&mut self, root: &mut Node) -> i32 {
         let mut es;
-        let mut file_add = 0;
+        let mut file_add = 0u64; // 这里应该是 u64 类型，因为 stream_position 返回的是 u64
         let mut child_node = Node::new("<expression>");
         root.add_child(child_node);
         let mut token2 = String::new();
         let mut token3 = String::new();
         let mut symbol_pos = 0;
-
+    
         if self.token == "ID" {
-            file_add = self.fp_tokenin.tell();//有tell这个函数吗？
+            // 获取当前文件位置
+            if let Some(ref mut file) = self.fp_tokenin {
+                match file.stream_position() {
+                    Ok(pos) => file_add = pos, // 获取文件当前位置
+                    Err(_) => return 23, // 处理文件错误，假设返回错误码 23
+                }
+            }
+    
+            let (new_token, new_token1) = match fscanf_token(&self.tokenfile) {
+                Ok((token, token1)) => (token, token1),
+                Err(_) => return 23, // 假设 fscanf_token 错误时返回 23
+            };
 
-            let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
             token2 = new_token;  // 分别赋值
             token3 = new_token1;
-
-            if self.token2 == "=" {
+    
+            if token2 == "=" {
+                child_node = Node::new("<expression>");
                 self.add_child(&mut child_node);
-                let mut son = Node::new(token2);
+                let son = Node::new(&token2);
                 child_node.add_child(son);
                 es = self.lookup(&self.token1, &mut symbol_pos, &self.Lastdefinedfunction);
                 if es > 0 {
                     return es;
                 }
-
-                if self.symbol[symbol_pos].kind != "variable" {
+    
+                let symbol_pos_usize = symbol_pos as usize;
+                if are_kinds_equal(self.symbol[symbol_pos_usize].kind.clone() , CategorySymbol::Variable) == false{
                     return 36; // 错误：不是变量
                 }
-
-                let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+    
+                let (new_token, new_token1) = match fscanf_token(&self.tokenfile) {
+                    Ok((token, token1)) => (token, token1),
+                    Err(_) => return 23, // 处理 fscanf_token 错误
+                };
                 self.token = new_token;  // 分别赋值
                 self.token1 = new_token1;
                 es = self.bool_expr(&mut child_node);
                 if es > 0 {
                     return es;
                 }
-
+    
                 self.codes[self.codes_index].opt = "STO".to_string();
-                self.codes[self.codes_index].operand = self.symbol[symbol_pos].address;
+                self.codes[self.codes_index].operand = self.symbol[symbol_pos_usize].address.clone();
                 self.codes_index += 1;
             } else {
-                self.fp_tokenin.seek(file_add, 0); // 回到"="之前
+                // 回到"="之前，调整文件指针
+                if let Some(file) = &mut self.fp_tokenin {
+                    if let Err(_) = file.seek(std::io::SeekFrom::Start(file_add)) {
+                        return 23; // 错误：回退文件指针失败
+                    }
+                }
+                child_node = Node::new("<expression>");
                 es = self.bool_expr(&mut child_node);
                 if es > 0 {
                     return es;
                 }
             }
         } else {
+            child_node = Node::new("<expression>");
             es = self.bool_expr(&mut child_node);
         }
-
+    
         es
     }
+    
     // // <bool_expr> -> <additive_expr> | <additive_expr> ( > | < | >= | <= | == | != ) <additive_expr>
     fn bool_expr(&mut self, root: &mut Node) -> i32 {
         let mut es;
@@ -1211,6 +1267,7 @@ impl Compiler {
         root.add_child(child_node);
 
         if self.token == "(" {
+            child_node = Node::new("<factor>");
             self.add_child(&mut child_node);
             let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
             self.token = new_token;  // 分别赋值
@@ -1228,6 +1285,7 @@ impl Compiler {
             self.token1 = new_token1;
         } else {
             if self.token == "ID" {
+                child_node = Node::new("<factor>");
                 self.add_child(&mut child_node);
                 let mut symbol_pos: i32 = 0;
                 es = self.lookup(&self.token1, &mut symbol_pos, &self.Lastdefinedfunction);
@@ -1235,7 +1293,7 @@ impl Compiler {
                     return es; // 变量未定义
                 }
 
-                if self.symbol[symbol_pos as usize].kind != SymbolKind::Variable {
+                if are_kinds_equal(self.symbol[symbol_pos as usize].kind.clone() , CategorySymbol::Variable) == false {
                     return 37; // 变量语义检查失败
                 }
 
@@ -1250,6 +1308,7 @@ impl Compiler {
             }
 
             if self.token == "NUM" {
+                child_node = Node::new("<factor>");
                 self.add_child(&mut child_node);
                 self.codes[self.codes_index as usize].opt = "LOADI".to_string();
                 self.codes[self.codes_index as usize].operand = self.token1.parse::<i32>().unwrap();
@@ -1270,7 +1329,7 @@ impl Compiler {
 
     // // 插入符号到符号表
     fn insert_symbol(&mut self, category: CategorySymbol, name: &str) -> i32 {
-        if self.symbol_index >= self.max_symbol_index {
+        if self.symbol_index >= 100 {
             return 21; // 符号表溢出
         }
 
@@ -1278,25 +1337,25 @@ impl Compiler {
 
         match category {
             CategorySymbol::Function => {
-                self.last_defined_function = name.to_string();
+                self.Lastdefinedfunction = name.to_string();
                 for i in (0..self.symbol_index).rev() {
-                    if self.symbol[i as usize].name == name && self.symbol[i as usize].kind == SymbolKind::Function {
+                    if self.symbol[i as usize].name == name &&  are_kinds_equal(self.symbol[i as usize].kind.clone() , CategorySymbol::Function) {
                         es = 32; // 错误：函数名重复
                         break;
                     }
                 }
-                self.symbol[self.symbol_index as usize].kind = SymbolKind::Function;
+                self.symbol[self.symbol_index as usize].kind = CategorySymbol::Function;
             }
             CategorySymbol::Variable => {
                 for i in (0..self.symbol_index).rev() {
-                    if self.symbol[i as usize].name == name && self.symbol[i as usize].kind == SymbolKind::Variable
-                        && self.symbol[i as usize].action_function == self.last_defined_function
+                    if self.symbol[i as usize].name == name && are_kinds_equal(self.symbol[i as usize].kind.clone() , CategorySymbol::Variable)
+                        && self.symbol[i as usize].action_function == self.Lastdefinedfunction
                     {
                         es = 22; // 错误：同一作用域内变量重复定义
                         break;
                     }
                 }
-                self.symbol[self.symbol_index as usize].kind = SymbolKind::Variable;
+                self.symbol[self.symbol_index as usize].kind = CategorySymbol::Variable;
                 self.symbol[self.symbol_index as usize].address = self.offset;
                 self.offset += 1; // 数据区指针加1
             }
@@ -1307,7 +1366,7 @@ impl Compiler {
         }
 
         self.symbol[self.symbol_index as usize].name = name.to_string();
-        self.symbol[self.symbol_index as usize].action_function = self.last_defined_function.clone();
+        self.symbol[self.symbol_index as usize].action_function = self.Lastdefinedfunction.clone();
         self.symbol_index += 1;
 
         es
@@ -1315,9 +1374,10 @@ impl Compiler {
 
     // // 查找符号表中的标识符
     fn lookup(&self, name: &str, p_position: &mut i32, fun_name: &str) -> i32 {
+
         for i in 0..self.symbol_index {
             if self.symbol[i as usize].name == name && self.symbol[i as usize].action_function == fun_name {
-                *p_position = i;
+                *p_position = i as i32;
                 return 0; // 找到符号
             }
         }
@@ -1341,12 +1401,12 @@ impl Compiler {
             writeln!(file, "{}", root.s).unwrap();  // 写入当前节点的字符串
         }
 
-        let child_num = root.child.len();
+        let child_num = root.children.len();
         if child_num == 0 {
             return;
         } else {
             for i in 0..child_num {
-                self.output_tree(&root.child[i], n + 1);  // 递归输出子树并增大空格数
+                self.output_tree(&root.children[i], n + 1);  // 递归输出子树并增大空格数
             }
         }
     }
@@ -1427,16 +1487,17 @@ impl Compiler {
 
     // // <variable_stat> -> ID
     fn variable_stat(&mut self, root: &mut Node) -> i32 {
-        let mut es = 0;
+        let es;
 
         let mut child_node = Node::new("<variable_stat>");
         root.add_child(child_node);
 
-
+        child_node = Node::new("<variable_stat>");
         self.add_child(&mut child_node);
 
         // 检查传入的参数是否已定义
-        let mut pos: usize = 0;
+        let mut pos: i32 = 0;
+
         es = self.lookup(&self.token1, &mut pos, &self.Lastdefinedfunction);
         if es > 0 {
             return es;
@@ -1448,8 +1509,9 @@ impl Compiler {
         self.token1 = new_token1;
 
         // 生成代码
+        let pos1: usize = pos as usize;
         self.codes[self.codes_index].opt = "LOAD".to_string();
-        self.codes[self.codes_index].operand = self.symbol[pos].address;
+        self.codes[self.codes_index].operand = self.symbol[pos1].address;
         self.codes_index += 1;
 
         es
