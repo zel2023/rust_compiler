@@ -120,6 +120,17 @@ struct Compiler {
     line_num:usize,
 }
 
+fn string_to_u8_array(s: &str) -> [u8; 10] {
+    let mut arr = [0u8; 10];  // 初始化一个大小为 10 的字节数组
+    
+    // 将字符串转换为字节数组并检查长度是否合适
+    let bytes = s.as_bytes();
+    let len = bytes.len().min(10);
+    arr[..len].copy_from_slice(&bytes[..len]);
+
+    arr  // 返回字节数组
+}
+
 fn fscanf_token(tokenfile: &str, line_num: &mut usize) -> io::Result<(String, String)> {
     // 定义 token 和 token1
     let mut token = String::new();
@@ -394,28 +405,56 @@ impl Compiler {
         }
 
         // 生成二进制形式的中间代码文件
+        // println!("请输入要生成的二进制形式的中间代码文件的名字（结构体存储）:");
+        // let mut codeout = String::new();
+        // io::stdin().read_line(&mut codeout).unwrap();
+        // codeout = codeout.trim().to_string();
+        // let fp_code_binary = File::create(&codeout);
+        // let mut fp_code_binary = match fp_code_binary {
+        //     Ok(file) => file,
+        //     Err(e) => {
+        //         println!("\n创建 {} 错误!{}", codeout.trim(),e);
+                
+        //         // println!("错误类型: {:?}", e.kind()); // 打印错误类型（更具体）
+        //         self.es = 10;
+        //         return self.es;
+        //     }
+        // };
+
+        // // 写入二进制文件
+        // use std::io::Write;
+        // let bytes = bincode::serialize(&self.codes).unwrap();
+
+
+        // fp_code_binary.write_all(&bytes).unwrap();
+
         println!("请输入要生成的二进制形式的中间代码文件的名字（结构体存储）:");
         let mut codeout = String::new();
         io::stdin().read_line(&mut codeout).unwrap();
-        codeout = codeout.trim().to_string();
+        codeout = codeout.trim().to_string(); // 去除换行符
+        
+        // 创建文件
         let fp_code_binary = File::create(&codeout);
         let mut fp_code_binary = match fp_code_binary {
             Ok(file) => file,
             Err(e) => {
-                println!("\n创建 {} 错误!{}", codeout.trim(),e);
-                
-                // println!("错误类型: {:?}", e.kind()); // 打印错误类型（更具体）
+                println!("\n创建 {} 错误!{}", codeout, e);
                 self.es = 10;
                 return self.es;
             }
         };
 
-        // 写入二进制文件
-        use std::io::Write;
-        let bytes = bincode::serialize(&self.codes).unwrap();
+        // 写入每个 Code 对象的二进制数据
+        for code in &self.codes {
+            if code.opt.is_empty() {
+                break; // 如果为空，则停止输出
+            }
+            let code_opt=string_to_u8_array(&code.opt);
+            // let opt_bytes = code_opt.as_bytes();  // 将字符串转为字节数组
+            fp_code_binary.write_all(&code_opt).unwrap();  // 写入操作码
+            fp_code_binary.write_all(&code.operand.to_le_bytes()).unwrap();  // 写入操作数
+        }
 
-
-        fp_code_binary.write_all(&bytes).unwrap();
 
         // // 生成语法树文件
         // println!("请输入要生成的语法树文件的名字:");
