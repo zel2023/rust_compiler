@@ -111,7 +111,109 @@ fn fscanf_token(tokenfile: &str) -> io::Result<(String, String)> {
 
     Ok((token, token1)) // 返回 token 和 token1
 }
+fn fun_declaration(compiler: &mut Compiler) -> i32 {
+    let mut es;
+    let mut child_node = Node::new("<fun_declaration>");
+    let root=compiler.root.as_mut().unwrap();
+    root.add_child(child_node);
 
+    if compiler.token != "ID" {
+        es = 2;
+        return es;
+    }
+
+    child_node = Node::new("<fun_declaration>");
+    compiler.add_child(&mut child_node);
+    let temp_token = compiler.token1.clone();
+    compiler.insert_symbol(CategorySymbol::Function, &temp_token); // 将函数名插入符号表
+
+    let temp = String::from(&compiler.token1);
+    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile).unwrap(); // 解构返回的元组
+    compiler.token = new_token;  // 分别赋值
+    compiler.token1 = new_token1;
+
+    if compiler.token != "(" {
+        es = 5;
+        return es;
+    }
+    compiler.add_child(&mut child_node);
+
+    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile).unwrap(); // 解构返回的元组
+    compiler.token = new_token;  // 分别赋值
+    compiler.token1 = new_token1;
+
+    compiler.symbol[compiler.symbol_index - 1].address = compiler.codes_index as i32; // 将函数体的入口地址填入符号表中的地址
+    es = compiler.parameter_list(&mut child_node);
+    if es > 0 {
+        return es;
+    }
+
+    let mut symbol_pos = 0;
+    es = compiler.lookup(&temp, &mut symbol_pos, &compiler.Lastdefinedfunction);
+    if es > 0 {
+        return es;
+    }
+
+    let mut symbol_pos_usize = symbol_pos as usize;
+    compiler.symbol[symbol_pos_usize].var_num = compiler.numofvariable as i32;
+    if compiler.token != ")" {
+        es = 6;
+        return es;
+    }
+    compiler.add_child(&mut child_node);
+
+    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile).unwrap(); // 解构返回的元组
+    compiler.token = new_token;  // 分别赋值
+    compiler.token1 = new_token1;
+    es = compiler.function_body(&mut child_node);
+
+    es
+}
+
+// main_declaration 函数
+fn main_declaration(compiler: &mut Compiler) -> i32 {
+    let mut es;
+    let mut child_node = Node::new("<main_declaration>");
+    let root=compiler.root.as_mut().unwrap();
+    root.add_child(child_node);
+
+    compiler.insert_symbol(CategorySymbol::Function, "main");
+
+    if compiler.token != "(" {
+        es = 5;
+        return es;
+    }
+
+    child_node = Node::new("<main_declaration>");
+    compiler.add_child(&mut child_node);
+
+    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile).unwrap(); // 解构返回的元组
+    compiler.token = new_token;  // 分别赋值
+    compiler.token1 = new_token1;
+
+    compiler.symbol[compiler.symbol_index - 1].address = compiler.codes_index as i32; // 填写函数体地址
+    es = compiler.parameter_list(&mut child_node);
+
+    if es > 0 {
+        return es;
+    }
+
+    if compiler.token != ")" {
+        es = 6;
+        return es;
+    }
+    compiler.add_child(&mut child_node);
+
+    compiler.codes[0].operand = compiler.codes_index as i32; // 设置代码跳转目标
+
+    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile).unwrap(); // 解构返回的元组
+    compiler.token = new_token;  // 分别赋值
+    compiler.token1 = new_token1;
+
+    es = compiler.function_body(&mut child_node);
+
+    es
+}
 
 impl Compiler {
     fn new() -> Self {
@@ -273,7 +375,7 @@ impl Compiler {
         self.token1 = new_token1;
 
         self.root = Some(Node::new("<program>"));
-        let  root = self.root.as_mut().unwrap();
+        // let  root = self.root.as_mut().unwrap();
 
 
         // 添加无条件跳转指令，跳转到 main 函数入口
@@ -288,7 +390,7 @@ impl Compiler {
             self.token = new_token;  // 分别赋值
             self.token1 = new_token1;
 
-            es = self.fun_declaration(root);
+            es = fun_declaration(self);
             if es != 0 {
                 return es;
             }
@@ -315,8 +417,8 @@ impl Compiler {
 
         
 
-        es = self.main_declaration(root);
-
+        // es = self.main_declaration(&mut self.root);
+        es =main_declaration(self);
         if es > 0 {
             return es;
         }
@@ -363,108 +465,110 @@ impl Compiler {
 
 
 
-    fn fun_declaration(&mut self, root: &mut Node) -> i32 {
-        let mut es;
-        let mut child_node = Node::new("<fun_declaration>");
-        root.add_child(child_node);
+    // fn fun_declaration(&mut self, root:&mut Option<Node>) -> i32 {
+    //     let root_use=root.as_mut().unwrap();
+    //     let mut es;
+    //     let mut child_node = Node::new("<fun_declaration>");
+    //     root_use.add_child(child_node);
 
-        if self.token != "ID" {
-            es = 2;
-            return es;
-        }
+    //     if self.token != "ID" {
+    //         es = 2;
+    //         return es;
+    //     }
 
-        child_node = Node::new("<fun_declaration>");
-        self.add_child(&mut child_node);
-        let temp_token = self.token1.clone();
-        self.insert_symbol(CategorySymbol::Function, &temp_token); // 将函数名插入符号表
+    //     child_node = Node::new("<fun_declaration>");
+    //     self.add_child(&mut child_node);
+    //     let temp_token = self.token1.clone();
+    //     self.insert_symbol(CategorySymbol::Function, &temp_token); // 将函数名插入符号表
 
-        let temp = String::from(&self.token1);
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
-        self.token = new_token;  // 分别赋值
-        self.token1 = new_token1;
+    //     let temp = String::from(&self.token1);
+    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+    //     self.token = new_token;  // 分别赋值
+    //     self.token1 = new_token1;
 
-        if self.token != "(" {
-            es = 5;
-            return es;
-        }
-        self.add_child(&mut child_node);
+    //     if self.token != "(" {
+    //         es = 5;
+    //         return es;
+    //     }
+    //     self.add_child(&mut child_node);
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
-        self.token = new_token;  // 分别赋值
-        self.token1 = new_token1;
+    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+    //     self.token = new_token;  // 分别赋值
+    //     self.token1 = new_token1;
 
-        //let mut fun_pos;
-        self.symbol[self.symbol_index - 1].address = self.codes_index as i32; // 将函数体的入口地址填入符号表中的地址
-        es = self.parameter_list(&mut child_node);
-        if es > 0 {
-            return es;
-        }
+    //     //let mut fun_pos;
+    //     self.symbol[self.symbol_index - 1].address = self.codes_index as i32; // 将函数体的入口地址填入符号表中的地址
+    //     es = self.parameter_list(&mut child_node);
+    //     if es > 0 {
+    //         return es;
+    //     }
 
-        // es = self.lookup(&temp, &mut fun_pos);
-        let mut symbol_pos = 0;
-        es=self.lookup(&temp, &mut symbol_pos, &self.Lastdefinedfunction);
-        if es > 0 {
-            return es;
-        }
+    //     // es = self.lookup(&temp, &mut fun_pos);
+    //     let mut symbol_pos = 0;
+    //     es=self.lookup(&temp, &mut symbol_pos, &self.Lastdefinedfunction);
+    //     if es > 0 {
+    //         return es;
+    //     }
 
-        let mut symbol_pos_usize = symbol_pos as usize;
-        self.symbol[symbol_pos_usize].var_num = self.numofvariable as i32;
-        if self.token != ")" {
-            es = 6;
-            return es;
-        }
-        self.add_child(&mut child_node);
+    //     let mut symbol_pos_usize = symbol_pos as usize;
+    //     self.symbol[symbol_pos_usize].var_num = self.numofvariable as i32;
+    //     if self.token != ")" {
+    //         es = 6;
+    //         return es;
+    //     }
+    //     self.add_child(&mut child_node);
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
-        self.token = new_token;  // 分别赋值
-        self.token1 = new_token1;
-        es = self.function_body(&mut child_node);
+    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+    //     self.token = new_token;  // 分别赋值
+    //     self.token1 = new_token1;
+    //     es = self.function_body(&mut child_node);
 
-        es
-    }
+    //     es
+    // }
 
-    fn main_declaration(&mut self, root: &mut Node) -> i32 {
-        let mut es;
-        let mut child_node = Node::new("<main_declaration>");
-        root.add_child(child_node);
+    // fn main_declaration(&mut self, root: &mut Option<Node>) -> i32 {
+    //     let root_use=root.as_mut().unwrap();
+    //     let mut es;
+    //     let mut child_node = Node::new("<main_declaration>");
+    //     root_use.add_child(child_node);
 
-        self.insert_symbol(CategorySymbol::Function, "main");
+    //     self.insert_symbol(CategorySymbol::Function, "main");
 
-        if self.token != "(" {
-            es = 5;
-            return es;
-        }
+    //     if self.token != "(" {
+    //         es = 5;
+    //         return es;
+    //     }
 
-        child_node = Node::new("<main_declaration>");
-        self.add_child(&mut child_node);
+    //     child_node = Node::new("<main_declaration>");
+    //     self.add_child(&mut child_node);
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
-        self.token = new_token;  // 分别赋值
-        self.token1 = new_token1;
+    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+    //     self.token = new_token;  // 分别赋值
+    //     self.token1 = new_token1;
 
-        self.symbol[self.symbol_index - 1].address = self.codes_index as i32; // 填写函数体地址
-        es = self.parameter_list(&mut child_node);
+    //     self.symbol[self.symbol_index - 1].address = self.codes_index as i32; // 填写函数体地址
+    //     es = self.parameter_list(&mut child_node);
 
-        if es > 0 {
-            return es;
-        }
+    //     if es > 0 {
+    //         return es;
+    //     }
 
-        if self.token != ")" {
-            es = 6;
-            return es;
-        }
-        self.add_child(&mut child_node);
+    //     if self.token != ")" {
+    //         es = 6;
+    //         return es;
+    //     }
+    //     self.add_child(&mut child_node);
 
-        self.codes[0].operand = self.codes_index as i32; // 设置代码跳转目标
+    //     self.codes[0].operand = self.codes_index as i32; // 设置代码跳转目标
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
-        self.token = new_token;  // 分别赋值
-        self.token1 = new_token1;
+    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+    //     self.token = new_token;  // 分别赋值
+    //     self.token1 = new_token1;
 
-        es = self.function_body(&mut child_node);
+    //     es = self.function_body(&mut child_node);
 
-        es
-    }
+    //     es
+    // }
 
     fn function_body(&mut self, root: &mut Node) -> i32 {
         let mut es;
