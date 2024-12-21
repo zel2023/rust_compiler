@@ -470,7 +470,7 @@ impl Compiler {
             }
             let code_opt=string_to_u8_array(&code.opt);
             // let opt_bytes = code_opt.as_bytes();  // 将字符串转为字节数组
-            println!("长度{}", &code_opt.len());
+            //println!("长度{}", &code_opt.len());
             fp_code_binary.write_all(&code_opt);  // 写入操作码
             let padding = [0u8; 2]; 
             fp_code_binary.write_all(&padding); 
