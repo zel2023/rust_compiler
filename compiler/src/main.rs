@@ -120,17 +120,36 @@ struct Compiler {
     line_num:usize,
 }
 
-fn string_to_u8_array(s: &str) -> [u8; 10] {
-    let mut arr = [0u8; 10];  // 初始化一个大小为 10 的字节数组
+// fn string_to_u8_array(s: &str) -> [u8; 10] {
+//     let mut arr = [0u8; 10];  // 初始化一个大小为 10 的字节数组
     
-    // 将字符串转换为字节数组并检查长度是否合适
-    let bytes = s.as_bytes();
+//     // 将字符串转换为字节数组并检查长度是否合适
+//     let bytes = s.as_bytes();
+//     let len = bytes.len().min(10);
+//     arr[..len].copy_from_slice(&bytes[..len]);
+
+//     arr  // 返回字节数组
+// }
+/// 将字符串转换为 `[u8; 10]`
+fn string_to_u8_array(input: &str) -> [u8; 10] {
+    let mut array = [0u8; 10]; // 初始化一个长度为 10 的数组，默认值为 0
+    let bytes = input.as_bytes(); // 将字符串转换为字节切片
+
     let len = bytes.len().min(10);
-    arr[..len].copy_from_slice(&bytes[..len]);
+    array[..len].copy_from_slice(&bytes[..len]);
 
-    arr  // 返回字节数组
-}
+    array
+    }
+    
+    /// 将 `[u8; 10]` 写入文件
+    fn write_u8_array_to_file(file_path: &str, array: &[u8; 10]) -> io::Result<()> {
+    let mut file = File::create(file_path)?; // 打开或创建目标文件
+    file.write_all(array)?; // 写入数组的字节内容
+    Ok(())
+    }
+    
 
+    
 fn fscanf_token(tokenfile: &str, line_num: &mut usize) -> io::Result<(String, String)> {
     // 定义 token 和 token1
     let mut token = String::new();
@@ -451,8 +470,15 @@ impl Compiler {
             }
             let code_opt=string_to_u8_array(&code.opt);
             // let opt_bytes = code_opt.as_bytes();  // 将字符串转为字节数组
-            fp_code_binary.write_all(&code_opt).unwrap();  // 写入操作码
-            fp_code_binary.write_all(&code.operand.to_le_bytes()).unwrap();  // 写入操作数
+            println!("长度{}", &code_opt.len());
+            fp_code_binary.write_all(&code_opt);  // 写入操作码
+            let padding = [0u8; 2]; 
+            fp_code_binary.write_all(&padding); 
+
+            
+            // write_u8_array_to_file(&codeout,&code_opt);
+            fp_code_binary.write_all(&code.operand.to_le_bytes());  // 写入操作数
+            // println!("1111长度{}", &code.operand..to_le_bytes().len());
         }
 
 
