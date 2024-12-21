@@ -44,6 +44,7 @@ impl Node {
 }
 
 #[derive(Debug)]
+#[derive(Clone)]
 struct Symbol {
     name: String,
     kind: CategorySymbol,
@@ -52,11 +53,47 @@ struct Symbol {
     var_num: i32, // 参数数量，若本身为变量，则此值为0
 }
 
+impl Default for CategorySymbol {
+    fn default() -> Self {
+        CategorySymbol::Function // 假设默认值为 Function
+    }
+}
+
+impl Default for Symbol {
+    fn default() -> Self {
+        Symbol {
+            name: String::new(),               // 默认空字符串
+            kind: CategorySymbol::default(),    // 使用 CategorySymbol 默认值
+            address: 0,                         // 默认值为 0
+            action_function: String::new(),     // 默认空字符串
+            var_num: 0,                         // 默认值为 0
+        }
+    }
+}
+
+
 #[derive(Debug)]
 #[derive(Serialize, Deserialize)]
+
 struct Code {
     opt: String,  // 操作码
     operand: i32,  // 操作数
+}
+impl Clone for Code {
+    fn clone(&self) -> Self {
+        Code {
+            opt: self.opt.clone(),
+            operand: self.operand,
+        }
+    }
+}
+impl Default for Code {
+    fn default() -> Self {
+        Code {
+            opt: String::new(),  // 空字符串作为默认值
+            operand: 0,          // 默认操作数为 0
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -80,11 +117,10 @@ struct Compiler {
     Lastdefinedfunction: String,
     numofvariable:usize,
     offset:i32,
+    line_num:usize,
 }
 
-
-
-fn fscanf_token(tokenfile: &str) -> io::Result<(String, String)> {
+fn fscanf_token(tokenfile: &str, line_num: &mut usize) -> io::Result<(String, String)> {
     // 定义 token 和 token1
     let mut token = String::new();
     let mut token1 = String::new();
@@ -93,30 +129,64 @@ fn fscanf_token(tokenfile: &str) -> io::Result<(String, String)> {
     let file = File::open(tokenfile)?;
     let reader = io::BufReader::new(file);
 
-    // 读取文件中的一行
-    for line in reader.lines() {
-        let line = line?; // 解包错误
-        let mut parts = line.split_whitespace(); // 按空白字符拆分
+    // 遍历文件中的每一行
+    for (current_line, line) in reader.lines().enumerate() {
+        // 只读取当前行
+        if current_line == *line_num {
+            let line = line?; // 解包错误
+            let mut parts = line.split_whitespace(); // 按空白字符拆分
 
-        if let Some(first) = parts.next() {
-            token = first.to_string(); // 第一个值赋给 token
+            if let Some(first) = parts.next() {
+                token = first.to_string(); // 第一个值赋给 token
+            }
+            if let Some(second) = parts.next() {
+                token1 = second.to_string(); // 第二个值赋给 token1
+                // println!("token:{},token1:{}", token, token1);
+            }
+            break;
         }
-        if let Some(second) = parts.next() {
-            token1 = second.to_string(); // 第二个值赋给 token1
-        }
-
-        // 读取到两个 token 后返回
-        break;
     }
+
+    // 读取成功后增加行号
+    *line_num += 1; // 修改传入的行号
 
     Ok((token, token1)) // 返回 token 和 token1
 }
+
+
+// fn fscanf_token(tokenfile: &str) -> io::Result<(String, String)> {
+//     // 定义 token 和 token1
+//     let mut token = String::new();
+//     let mut token1 = String::new();
+
+//     // 打开文件
+//     let file = File::open(tokenfile)?;
+//     let reader = io::BufReader::new(file);
+
+//     // 读取文件中的一行
+//     for line in reader.lines() {
+//         let line = line?; // 解包错误
+//         let mut parts = line.split_whitespace(); // 按空白字符拆分
+
+//         if let Some(first) = parts.next() {
+//             token = first.to_string(); // 第一个值赋给 token
+//         }
+//         if let Some(second) = parts.next() {
+//             token1 = second.to_string(); // 第二个值赋给 token1
+//         }
+
+//         // 读取到两个 token 后返回
+//         break;
+//     }
+
+//     Ok((token, token1)) // 返回 token 和 token1
+// }
 fn fun_declaration(compiler: &mut Compiler) -> i32 {
     let mut es;
     let mut child_node = Node::new("<fun_declaration>");
     let root=compiler.root.as_mut().unwrap();
     root.add_child(child_node);
-
+    // println!("!!!!!!!!!!!token:{},token1:{}", compiler.token, compiler.token1);
     if compiler.token != "ID" {
         es = 2;
         return es;
@@ -128,7 +198,7 @@ fn fun_declaration(compiler: &mut Compiler) -> i32 {
     compiler.insert_symbol(CategorySymbol::Function, &temp_token); // 将函数名插入符号表
 
     let temp = String::from(&compiler.token1);
-    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile).unwrap(); // 解构返回的元组
+    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile,&mut compiler.line_num).unwrap(); // 解构返回的元组
     compiler.token = new_token;  // 分别赋值
     compiler.token1 = new_token1;
 
@@ -138,7 +208,7 @@ fn fun_declaration(compiler: &mut Compiler) -> i32 {
     }
     compiler.add_child(&mut child_node);
 
-    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile).unwrap(); // 解构返回的元组
+    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile,&mut compiler.line_num).unwrap(); // 解构返回的元组
     compiler.token = new_token;  // 分别赋值
     compiler.token1 = new_token1;
 
@@ -156,13 +226,15 @@ fn fun_declaration(compiler: &mut Compiler) -> i32 {
 
     let mut symbol_pos_usize = symbol_pos as usize;
     compiler.symbol[symbol_pos_usize].var_num = compiler.numofvariable as i32;
+    // println!("es=6 token:{},token1:{}", compiler.token, compiler.token1);
     if compiler.token != ")" {
         es = 6;
+        // println!("被输出！");
         return es;
     }
     compiler.add_child(&mut child_node);
 
-    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile).unwrap(); // 解构返回的元组
+    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile,&mut compiler.line_num).unwrap(); // 解构返回的元组
     compiler.token = new_token;  // 分别赋值
     compiler.token1 = new_token1;
     es = compiler.function_body(&mut child_node);
@@ -187,7 +259,7 @@ fn main_declaration(compiler: &mut Compiler) -> i32 {
     child_node = Node::new("<main_declaration>");
     compiler.add_child(&mut child_node);
 
-    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile).unwrap(); // 解构返回的元组
+    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile,&mut compiler.line_num).unwrap(); // 解构返回的元组
     compiler.token = new_token;  // 分别赋值
     compiler.token1 = new_token1;
 
@@ -197,16 +269,17 @@ fn main_declaration(compiler: &mut Compiler) -> i32 {
     if es > 0 {
         return es;
     }
-
+    // println!("main_declaration{}{}",compiler.token,compiler.token1);
     if compiler.token != ")" {
         es = 6;
+        // println!("被输出！");
         return es;
     }
     compiler.add_child(&mut child_node);
 
     compiler.codes[0].operand = compiler.codes_index as i32; // 设置代码跳转目标
 
-    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile).unwrap(); // 解构返回的元组
+    let (new_token, new_token1) = fscanf_token(&compiler.tokenfile,&mut compiler.line_num).unwrap(); // 解构返回的元组
     compiler.token = new_token;  // 分别赋值
     compiler.token1 = new_token1;
 
@@ -228,8 +301,8 @@ impl Compiler {
             fp_code_binary: None,
             fp_code_text: None,
             fp_syntaxtree: None,
-            codes: Vec::new(),
-            symbol: Vec::with_capacity(MAX_SYMBOL_INDEX),
+            codes: vec![Code::default(); 200],
+            symbol: vec![Symbol::default(); 200],
             symbol_index: 0,
             codes_index: 0,
             es: 0,
@@ -237,6 +310,7 @@ impl Compiler {
             Lastdefinedfunction: String::new(),
             numofvariable:0,
             offset:0,
+            line_num:0,
         }
     }
 
@@ -303,8 +377,9 @@ impl Compiler {
         let fp_code_text = File::create(&self.codeout);
         let mut fp_code_text = match fp_code_text {
             Ok(file) => file,
-            Err(_) => {
+            Err(e) => {
                 println!("\n创建 {} 错误!", self.codeout);
+
                 self.es = 10;
                 return self.es;
             }
@@ -322,11 +397,14 @@ impl Compiler {
         println!("请输入要生成的二进制形式的中间代码文件的名字（结构体存储）:");
         let mut codeout = String::new();
         io::stdin().read_line(&mut codeout).unwrap();
+        codeout = codeout.trim().to_string();
         let fp_code_binary = File::create(&codeout);
         let mut fp_code_binary = match fp_code_binary {
             Ok(file) => file,
-            Err(_) => {
-                println!("\n创建 {} 错误!", codeout.trim());
+            Err(e) => {
+                println!("\n创建 {} 错误!{}", codeout.trim(),e);
+                
+                // println!("错误类型: {:?}", e.kind()); // 打印错误类型（更具体）
                 self.es = 10;
                 return self.es;
             }
@@ -339,28 +417,29 @@ impl Compiler {
 
         fp_code_binary.write_all(&bytes).unwrap();
 
-        // 生成语法树文件
-        println!("请输入要生成的语法树文件的名字:");
-        let mut syntaxtree = String::new();
-        io::stdin().read_line(&mut syntaxtree).unwrap();
-        self.syntaxtree = syntaxtree.trim().to_string();
+        // // 生成语法树文件
+        // println!("请输入要生成的语法树文件的名字:");
+        // let mut syntaxtree = String::new();
+        // io::stdin().read_line(&mut syntaxtree).unwrap();
+        
+        // self.syntaxtree = syntaxtree.trim().to_string();
 
-        let fp_syntaxtree = File::create(&self.syntaxtree);
-        let mut fp_syntaxtree = match fp_syntaxtree {
-            Ok(file) => file,
-            Err(_) => {
-                println!("\n创建 {} 错误!", self.syntaxtree);
-                self.es = 10;
-                return self.es;
-            }
-        };
+        // let fp_syntaxtree = File::create(&self.syntaxtree);
+        // let mut fp_syntaxtree = match fp_syntaxtree {
+        //     Ok(file) => file,
+        //     Err(_) => {
+        //         println!("\n创建 {} 错误!", self.syntaxtree);
+        //         self.es = 10;
+        //         return self.es;
+        //     }
+        // };
 
-        // 输出语法树
-        // let node = self.root.as_ref().unwrap();
-        // self.output_tree(&node, 0);
-        if let Some(node) = self.root.take() {
-            self.output_tree(&node, 0);
-        }
+        // // 输出语法树
+        // // let node = self.root.as_ref().unwrap();
+        // // self.output_tree(&node, 0);
+        // if let Some(node) = self.root.take() {
+        //     self.output_tree(&node, 0);
+        // }
 
         es
     }
@@ -370,10 +449,10 @@ impl Compiler {
         
         // 读取token
         
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
-
+        // println!("token: {}, token1: {}",self.token,self.token1);
         self.root = Some(Node::new("<program>"));
         // let  root = self.root.as_mut().unwrap();
 
@@ -386,16 +465,16 @@ impl Compiler {
         
 
         while self.token == "function" {
-            let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+            let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
             self.token = new_token;  // 分别赋值
             self.token1 = new_token1;
-
+            // println!("token: {}, token1: {}",self.token,self.token1);
             es = fun_declaration(self);
             if es != 0 {
                 return es;
             }
             
-            let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+            let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
             self.token = new_token;  // 分别赋值
             self.token1 = new_token1;
         }
@@ -411,7 +490,7 @@ impl Compiler {
             return es;
         }
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -423,7 +502,7 @@ impl Compiler {
             return es;
         }
 
-        if !self.is_end_of_file() {
+        if !self.is_end_of_file(self.line_num,&self.tokenfile) {
             es = 24; // 程序结束后有多余字符
             return es;
         }
@@ -432,6 +511,9 @@ impl Compiler {
         println!("符号表");
         println!("名字\t \t类型 \t地址\t作用函数");
         for symbol in &self.symbol {
+            if symbol.name.is_empty() {
+                break; // 如果为空，则停止输出
+            }
             println!(
                 "{:<8} \t{:?} \t{:?} \t{:?}",
                 symbol.name, symbol.kind, symbol.address, symbol.action_function
@@ -447,18 +529,49 @@ impl Compiler {
     }
 
 // 自定义一个方法来判断文件是否已结束
-    fn is_end_of_file(&self) -> bool {
-        if let Some(fp) = &self.fp_tokenin {
-            let mut buf_reader = BufReader::new(fp);
-            let mut buffer = String::new();
+    // fn is_end_of_file(&self) -> bool {
+    //     if let Some(fp) = &self.fp_tokenin {
+    //         let mut buf_reader = BufReader::new(fp);
+    //         let mut buffer = String::new();
 
-            match buf_reader.read_to_string(&mut buffer) {
-                Ok(0) => true,  // 文件已经读取完毕
-                Ok(_) => false, // 仍有内容
-                Err(_) => false, // 错误时，也视为未到达 EOF
+    //         match buf_reader.read_to_string(&mut buffer) {
+    //             Ok(0) => true,  // 文件已经读取完毕
+    //             Ok(_) => false, // 仍有内容
+    //             Err(_) => false, // 错误时，也视为未到达 EOF
+    //         }
+    //     } else {
+    //         true // 如果文件指针为空，直接返回 true
+    //     }
+    // }
+    fn is_end_of_file(&self, line_num: usize, tokenfile: &str) -> bool {
+        if let Some(fp) = &self.fp_tokenin {
+            let file = File::open(tokenfile);
+            match file {
+                Ok(f) => {
+                    let mut buf_reader = BufReader::new(f);
+                    let mut current_line = 0;
+    
+                    // 逐行读取文件并判断当前行号
+                    for line in buf_reader.lines() {
+                        current_line += 1;
+    
+                        // 如果当前行号等于目标行号，返回 true
+                        if current_line == line_num {
+                            return true;
+                        }
+                    }
+    
+                    // 如果文件读取完毕且未找到目标行，返回 false
+                    false
+                },
+                Err(_) => {
+                    // 文件打开失败，返回 false
+                    false
+                }
             }
         } else {
-            true // 如果文件指针为空，直接返回 true
+            // 如果文件指针为空，直接返回 false
+            false
         }
     }
 
@@ -482,7 +595,7 @@ impl Compiler {
     //     self.insert_symbol(CategorySymbol::Function, &temp_token); // 将函数名插入符号表
 
     //     let temp = String::from(&self.token1);
-    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
     //     self.token = new_token;  // 分别赋值
     //     self.token1 = new_token1;
 
@@ -492,7 +605,7 @@ impl Compiler {
     //     }
     //     self.add_child(&mut child_node);
 
-    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
     //     self.token = new_token;  // 分别赋值
     //     self.token1 = new_token1;
 
@@ -518,7 +631,7 @@ impl Compiler {
     //     }
     //     self.add_child(&mut child_node);
 
-    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
     //     self.token = new_token;  // 分别赋值
     //     self.token1 = new_token1;
     //     es = self.function_body(&mut child_node);
@@ -542,7 +655,7 @@ impl Compiler {
     //     child_node = Node::new("<main_declaration>");
     //     self.add_child(&mut child_node);
 
-    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
     //     self.token = new_token;  // 分别赋值
     //     self.token1 = new_token1;
 
@@ -561,7 +674,7 @@ impl Compiler {
 
     //     self.codes[0].operand = self.codes_index as i32; // 设置代码跳转目标
 
-    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+    //     let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
     //     self.token = new_token;  // 分别赋值
     //     self.token1 = new_token1;
 
@@ -583,7 +696,7 @@ impl Compiler {
         child_node = Node::new("<function_body>");
         self.add_child(&mut child_node);
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
         es = self.declaration_list(&mut child_node);
@@ -591,10 +704,12 @@ impl Compiler {
             return es;
         }
 
-        self.codes.push(Code {
-            opt: String::from("ENTER"),
-            operand: self.offset, // 假设offset为2
-        });
+        // self.codes.push(Code {
+        //     opt: String::from("ENTER"),
+        //     operand: self.offset, // 假设offset为2
+        // });
+        self.codes[self.codes_index].opt = "ENTER".to_string();
+        self.codes[self.codes_index].operand=self.offset;
         self.codes_index += 1;
 
         es = self.statement_list(&mut child_node);
@@ -609,11 +724,13 @@ impl Compiler {
         }
         self.add_child(&mut child_node);
 
-        self.codes.push(Code {
-            opt: String::from("RETURN"),
-            operand: 0,
-        });
-
+        // self.codes.push(Code {
+        //     opt: String::from("RETURN"),
+        //     operand: 0,
+        // });
+        self.codes[self.codes_index].opt = "RETURN".to_string();
+        // self.codes[self.codes_index].operand=self.offset;
+        self.codes_index+=1;
         es
     }
 
@@ -643,7 +760,7 @@ impl Compiler {
         self.add_child(&mut child_node);
 
         // 读取 token
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -661,7 +778,7 @@ impl Compiler {
         }
 
         // 读取下一个 token
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -672,7 +789,7 @@ impl Compiler {
         self.add_child(&mut child_node);
 
         // 读取下一个 token
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -747,14 +864,14 @@ impl Compiler {
         self.add_child(&mut child_node);
 
         // 读取 token
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
         if self.token != "(" {
             return 5; // 错误：缺少左括号
         }
         self.add_child(&mut child_node);
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -764,6 +881,8 @@ impl Compiler {
         }
 
         if self.token != ")" {
+            // println!("被输出4");
+
             return 6; // 错误：缺少右括号
         }
         self.add_child(&mut child_node);
@@ -773,7 +892,7 @@ impl Compiler {
         cx1 = self.codes_index;
         self.codes_index += 1;
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
         es = self.statement(&mut child_node);
@@ -790,7 +909,7 @@ impl Compiler {
         // 处理 else 部分
         if self.token == "else" {
             self.add_child(&mut child_node);
-            let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+            let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
             self.token = new_token;  // 分别赋值
             self.token1 = new_token1;
             es = self.statement(&mut child_node);
@@ -812,7 +931,7 @@ impl Compiler {
         let mut child_node = Node::new("<while_stat>");
         root.add_child(child_node);
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -823,7 +942,7 @@ impl Compiler {
             return 5; // 错误：缺少左括号
         }
         self.add_child(&mut child_node);
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -832,8 +951,9 @@ impl Compiler {
         if es > 0 {
             return es;
         }
-
+        // println!("while_stat,token{},token1{}",self.token,self.token1);
         if self.token != ")" {
+            // println!("被输出5");
             return 6; // 错误：缺少右括号
         }
         self.add_child(&mut child_node);
@@ -843,7 +963,7 @@ impl Compiler {
         cx1 = self.codes_index;
         self.codes_index += 1;
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
         es = self.statement(&mut child_node);
@@ -873,7 +993,7 @@ impl Compiler {
 
         child_node = Node::new("<for_stat>");
         self.add_child(&mut child_node);
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -881,7 +1001,7 @@ impl Compiler {
             return 5; // 错误：缺少左括号
         }
         self.add_child(&mut child_node);
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -896,7 +1016,7 @@ impl Compiler {
         self.add_child(&mut child_node);
         cx_exp2 = self.codes_index;
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
         es = self.expression(&mut child_node);
@@ -918,7 +1038,7 @@ impl Compiler {
         self.add_child(&mut child_node);
         cx_exp3 = self.codes_index;
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
         es = self.expression(&mut child_node);
@@ -932,10 +1052,12 @@ impl Compiler {
         self.codes[cx2].operand = self.codes_index as i32;
 
         if self.token != ")" {
+            // println!("被输出1");
             return 6; // 错误：缺少右括号
+            
         }
         self.add_child(&mut child_node);
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -961,7 +1083,7 @@ impl Compiler {
 
         child_node = Node::new("<write_stat>");
         self.add_child(&mut child_node);
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -979,7 +1101,7 @@ impl Compiler {
         self.codes[self.codes_index].opt = "OUT".to_string();
         self.codes_index += 1;
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
         es
@@ -992,7 +1114,7 @@ impl Compiler {
 
         child_node = Node::new("<read_stat>");
         self.add_child(&mut child_node);
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -1012,15 +1134,15 @@ impl Compiler {
         }
 
         let symbol_pos_usize:usize = symbol_pos as usize;
-        let codesIndex_usize:usize = self.codes_index as usize;
+        // let codesIndex_usize:usize = self.codes_index as usize;
 
         self.codes[self.codes_index].opt = "IN".to_string();
         self.codes_index += 1;
-        self.codes[codesIndex_usize].opt = "STO".to_string();
+        self.codes[self.codes_index].opt = "STO".to_string();
         self.codes[self.codes_index].operand = self.symbol[symbol_pos_usize].address;
         self.codes_index += 1;
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -1029,7 +1151,7 @@ impl Compiler {
         }
 
         self.add_child(&mut child_node);
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -1043,14 +1165,14 @@ impl Compiler {
         root.add_child(child_node);
         child_node = Node::new("<compound_stat>");
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
 
         let es = self.statement_list(&mut child_node);
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -1064,7 +1186,7 @@ impl Compiler {
         let mut child_node = Node::new("<call_stat>");
         root.add_child(child_node);
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
         if self.token != "ID" {
@@ -1084,7 +1206,7 @@ impl Compiler {
             return 34; // 错误：标识符不是函数
         }
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -1094,7 +1216,7 @@ impl Compiler {
 
         self.add_child(&mut child_node);
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
         if self.symbol[symobol_pos_usize].var_num != 0 {
@@ -1112,12 +1234,13 @@ impl Compiler {
         }
 
         if self.token != ")" {
+            // println!("被输出2");
             return 6; // 错误：缺少右括号
         }
 
         self.add_child(&mut child_node);
 
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -1126,7 +1249,7 @@ impl Compiler {
         }
 
         self.add_child(&mut child_node);
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -1148,7 +1271,7 @@ impl Compiler {
         if self.token == ";" {
             self.add_child(&mut child_node);
 
-            let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+            let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
             self.token = new_token;  // 分别赋值
             self.token1 = new_token1;
             return es;
@@ -1162,7 +1285,7 @@ impl Compiler {
 
         if self.token == ";" {
             self.add_child(&mut child_node);
-            let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+            let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
             self.token = new_token;  // 分别赋值
             self.token1 = new_token1;
             return es;
@@ -1174,23 +1297,23 @@ impl Compiler {
     // // <expression> -> ID = <bool_expr> | <bool_expr>
     fn expression(&mut self, root: &mut Node) -> i32 {
         let mut es;
-        let mut file_add = 0u64; // 这里应该是 u64 类型，因为 stream_position 返回的是 u64
+        let mut file_add = 0usize; // 这里应该是 u64 类型，因为 stream_position 返回的是 u64
         let mut child_node = Node::new("<expression>");
         root.add_child(child_node);
         let mut token2 = String::new();
         let mut token3 = String::new();
         let mut symbol_pos = 0;
-    
+        
         if self.token == "ID" {
             // 获取当前文件位置
-            if let Some(ref mut file) = self.fp_tokenin {
-                match file.stream_position() {
-                    Ok(pos) => file_add = pos, // 获取文件当前位置
-                    Err(_) => return 23, // 处理文件错误，假设返回错误码 23
-                }
-            }
-    
-            let (new_token, new_token1) = match fscanf_token(&self.tokenfile) {
+            // if let Some(ref mut file) = self.fp_tokenin {
+            //     match file.stream_position() {
+            //         Ok(pos) => file_add = pos, // 获取文件当前位置
+            //         Err(_) => return 23, // 处理文件错误，假设返回错误码 23
+            //     }
+            // }
+            file_add=self.line_num;
+            let (new_token, new_token1) = match fscanf_token(&self.tokenfile,&mut self.line_num) {
                 Ok((token, token1)) => (token, token1),
                 Err(_) => return 23, // 假设 fscanf_token 错误时返回 23
             };
@@ -1213,7 +1336,7 @@ impl Compiler {
                     return 36; // 错误：不是变量
                 }
     
-                let (new_token, new_token1) = match fscanf_token(&self.tokenfile) {
+                let (new_token, new_token1) = match fscanf_token(&self.tokenfile,&mut self.line_num) {
                     Ok((token, token1)) => (token, token1),
                     Err(_) => return 23, // 处理 fscanf_token 错误
                 };
@@ -1229,11 +1352,12 @@ impl Compiler {
                 self.codes_index += 1;
             } else {
                 // 回到"="之前，调整文件指针
-                if let Some(file) = &mut self.fp_tokenin {
-                    if let Err(_) = file.seek(std::io::SeekFrom::Start(file_add)) {
-                        return 23; // 错误：回退文件指针失败
-                    }
-                }
+                // if let Some(file) = &mut self.fp_tokenin {
+                //     if let Err(_) = file.seek(std::io::SeekFrom::Start(file_add)) {
+                //         return 23; // 错误：回退文件指针失败
+                //     }
+                // }
+                self.line_num=file_add;
                 child_node = Node::new("<expression>");
                 es = self.bool_expr(&mut child_node);
                 if es > 0 {
@@ -1244,7 +1368,7 @@ impl Compiler {
             child_node = Node::new("<expression>");
             es = self.bool_expr(&mut child_node);
         }
-    
+        // println!("expression_stat,token{},token1{}",&self.token,&self.token1);
         es
     }
     
@@ -1266,7 +1390,7 @@ impl Compiler {
             self.add_child(&mut child_node);
 
             let token2 = self.token.clone(); // 保存运算符
-            let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+            let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
             self.token = new_token;  // 分别赋值
             self.token1 = new_token1;
 
@@ -1307,7 +1431,7 @@ impl Compiler {
         while self.token == "+" || self.token == "-" {
             self.add_child(&mut child_node);
             let token2 = self.token.clone(); // 保存运算符
-            let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+            let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
             self.token = new_token;  // 分别赋值
             self.token1 = new_token1;
 
@@ -1342,7 +1466,7 @@ impl Compiler {
         while self.token == "*" || self.token == "/" {
             self.add_child(&mut child_node);
             let token2 = self.token.clone(); // 保存运算符
-            let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+            let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
             self.token = new_token;  // 分别赋值
             self.token1 = new_token1;
 
@@ -1377,7 +1501,7 @@ impl Compiler {
         if self.token == "(" {
             child_node = Node::new("<factor>");
             self.add_child(&mut child_node);
-            let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+            let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
             self.token = new_token;  // 分别赋值
             self.token1 = new_token1;
             es = self.additive_expr(&mut child_node);
@@ -1385,10 +1509,11 @@ impl Compiler {
                 return es;
             }
             if self.token != ")" {
+                // println!("被输出3");
                 return 6; // 错误：少右括号
             }
             self.add_child(&mut child_node);
-            let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+            let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
             self.token = new_token;  // 分别赋值
             self.token1 = new_token1;
         } else {
@@ -1409,7 +1534,7 @@ impl Compiler {
                 self.codes[self.codes_index as usize].operand = self.symbol[symbol_pos as usize].address;
                 self.codes_index += 1;
 
-                let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+                let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
                 self.token = new_token;  // 分别赋值
                 self.token1 = new_token1;
                 return es;
@@ -1422,7 +1547,7 @@ impl Compiler {
                 self.codes[self.codes_index as usize].operand = self.token1.parse::<i32>().unwrap();
                 self.codes_index += 1;
 
-                let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+                let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
                 self.token = new_token;  // 分别赋值
                 self.token1 = new_token1;
                 return es;
@@ -1529,7 +1654,7 @@ impl Compiler {
         self.add_child(&mut child_node);
 
         // 读取 token
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -1546,7 +1671,7 @@ impl Compiler {
         }
 
         // 读取下一个 token
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -1574,7 +1699,7 @@ impl Compiler {
                 }
 
                 if self.token == "," {
-                    let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+                    let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
                     self.token = new_token;  // 分别赋值
                     self.token1 = new_token1;
                     flag = 1;
@@ -1612,7 +1737,7 @@ impl Compiler {
         }
 
         // 读取下一个 token
-        let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+        let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
         self.token = new_token;  // 分别赋值
         self.token1 = new_token1;
 
@@ -1647,7 +1772,7 @@ impl Compiler {
                 }
 
                 if self.token == "," {
-                    let (new_token, new_token1) = fscanf_token(&self.tokenfile).unwrap(); // 解构返回的元组
+                    let (new_token, new_token1) = fscanf_token(&self.tokenfile,&mut self.line_num).unwrap(); // 解构返回的元组
                     self.token = new_token;  // 分别赋值
                     self.token1 = new_token1;
                     flag = 1;
@@ -1677,6 +1802,7 @@ fn main() {
     if es == 0 {
         println!("语法、语义分析并生成代码成功!");
     } else {
+        println!("错误代码：{}", es);
         println!("语法、语义分析并生成代码错误!");
     }
 }
