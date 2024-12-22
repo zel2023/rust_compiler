@@ -1,0 +1,14 @@
+   0 BR    1  
+   1 ENTER 4  
+   2 LOAD  2  
+   3 LOAD  3  
+   4 LES  
+   5 BRF   13 
+   6 LOAD  3  
+   7 STO   2  
+   8 LOAD  2  
+   9 LOAD  3  
+  10 SUB  
+  11 STO   2  
+  12 BR    13 
+  13 RETURN
