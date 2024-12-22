@@ -103,6 +103,7 @@ struct Compiler {
     token1: String,
     tokenfile: String,
     codeout: String,
+    codeout2:String,
     syntaxtree: String,
     fp_tokenin: Option<File>,   // 单词流文件指针
     fp_code_binary: Option<File>, // 中间代码二进制文件指针
@@ -326,6 +327,7 @@ impl Compiler {
             token1: String::new(),
             tokenfile: String::new(),
             codeout: String::new(),
+            codeout2:String::new(),
             syntaxtree: String::new(),
             fp_tokenin: None,
             fp_code_binary: None,
@@ -344,6 +346,19 @@ impl Compiler {
         }
     }
 
+
+    fn set_tokenfile(&mut self, filename: String) {//设置tokenfile
+        self.tokenfile = filename;
+    }
+
+    fn set_codeout(&mut self, filename: String) {    //设置codeout
+
+        self.codeout = filename;
+    }
+    fn set_codeout2(&mut self, filename: String) {    //设置codeout
+
+        self.codeout2 = filename;
+    }
     fn add_child(&mut self, n: &mut Node) {
         //let mut str = self.token1.clone();
         let child_node = Node::new(&self.token1);
@@ -354,12 +369,12 @@ impl Compiler {
         self.codes_index = 0;
         let mut es = 0;
 
-        // 读取文件名
-        println!("请输入单词流文件名（包括路径）：");
-        let mut tokenfile = String::new();
-        io::stdin().read_line(&mut tokenfile).unwrap();
-        self.tokenfile = tokenfile.trim().to_string();
-
+        // // 读取文件名(原来逻辑)
+        // println!("请输入单词流文件名（包括路径）：");
+        // let mut tokenfile = String::new();
+        // io::stdin().read_line(&mut tokenfile).unwrap();
+        // self.tokenfile = tokenfile.trim().to_string();
+        //现在在主函数中设置文件名
         self.fp_tokenin = OpenOptions::new().read(true).open(&self.tokenfile).ok();
 
         if self.fp_tokenin.is_none() {
@@ -399,10 +414,10 @@ impl Compiler {
             38 => println!("函数传入的参数数量不对!"),
             _ => {}
         }
-        println!("请输入要生成的文本形式的中间代码文件的名字（包括路径）：");
-        let mut codeout = String::new();
-        io::stdin().read_line(&mut codeout).unwrap();
-        self.codeout = codeout.trim().to_string();
+        // println!("请输入要生成的文本形式的中间代码文件的名字（包括路径）：");
+        // let mut codeout = String::new();
+        // io::stdin().read_line(&mut codeout).unwrap();
+        self.codeout = self.codeout.trim().to_string();
 
         let fp_code_text = File::create(&self.codeout);
         let mut fp_code_text = match fp_code_text {
@@ -447,17 +462,18 @@ impl Compiler {
 
         // fp_code_binary.write_all(&bytes).unwrap();
 
-        println!("请输入要生成的二进制形式的中间代码文件的名字（结构体存储）:");
-        let mut codeout = String::new();
-        io::stdin().read_line(&mut codeout).unwrap();
-        codeout = codeout.trim().to_string(); // 去除换行符
+        //原来逻辑
+        // println!("请输入要生成的二进制形式的中间代码文件的名字（结构体存储）:");
+        // let mut codeout = String::new();
+        // io::stdin().read_line(&mut codeout).unwrap();
+        self.codeout2 = self.codeout2.trim().to_string(); // 去除换行符
         
         // 创建文件
-        let fp_code_binary = File::create(&codeout);
+        let fp_code_binary = File::create(&self.codeout2);
         let mut fp_code_binary = match fp_code_binary {
             Ok(file) => file,
             Err(e) => {
-                println!("\n创建 {} 错误!{}", codeout, e);
+                println!("\n创建 {} 错误!{}", self.codeout2, e);
                 self.es = 10;
                 return self.es;
             }
@@ -1862,8 +1878,15 @@ impl Compiler {
 
 fn main() {
     let mut compiler = Compiler::new();
-
+    // let filename="E:\rust_project\rust_compiler\compiler\src\1.txt".to_string();
+    let filename = "E:\\rust_project\\rust_compiler\\compiler\\src\\1.txt".to_string();
+    compiler.set_tokenfile(filename);
+    let outfile1="./2.txt".to_string();
+    compiler.set_codeout(outfile1);
+    let outfile2="./3.txt".to_string();
+    compiler.set_codeout2(outfile2);
     let es = compiler.test_parse();
+
     if es == 0 {
         println!("语法、语义分析并生成代码成功!");
     } else {
