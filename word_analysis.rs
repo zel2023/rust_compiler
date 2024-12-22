@@ -85,7 +85,7 @@ fn compile_word(rfile: &mut File, wfile: &mut File, row: &mut usize) -> io::Resu
         writeln!(wfile, "\t{}\t\t{}", operator, operator)?;
     } else {
         // 处理非法字符
-        writeln!(wfile, "错误：非法字符：{}\t错误位置在第{}行", ch, row)?;
+        println!("错误：非法字符：{}\t错误位置在第{}行", ch, row);
         return Ok(2);
     }
 
@@ -97,14 +97,14 @@ fn compile(input_filename: &str, output_filename: &str) -> io::Result<()> {
     let mut rfile = input_file;  // 使用 File 类型，而不是 BufReader
     let mut wfile = File::create(output_filename)?;
 
-    writeln!(wfile, "--------------------编译结果--------------------")?;
+    //writeln!(wfile, "--------------------编译结果--------------------")?;
 
     let mut row = 1;
     loop {
         match compile_word(&mut rfile, &mut wfile, &mut row)? {
             -1 => break,
             0 => (),
-            _ => writeln!(wfile, "错误发生在第{}行", row)?,
+            _ => println!("错误发生在第{}行", row),
         }
     }
 
