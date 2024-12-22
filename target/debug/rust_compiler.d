@@ -1,1 +1,1 @@
-E:\code\code_rust\temp\rust_compiler\target\debug\rust_compiler.exe: E:\code\code_rust\temp\rust_compiler\src\main.rs E:\code\code_rust\temp\rust_compiler\src\syntax.rs E:\code\code_rust\temp\rust_compiler\src\virtual_machine.rs E:\code\code_rust\temp\rust_compiler\src\word_analysis.rs
+E:\code\code_rust\rust_compiler\target\debug\rust_compiler.exe: E:\code\code_rust\rust_compiler\src\main.rs E:\code\code_rust\rust_compiler\src\syntax.rs E:\code\code_rust\rust_compiler\src\virtual_machine.rs E:\code\code_rust\rust_compiler\src\word_analysis.rs
