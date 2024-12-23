@@ -1,8 +1,8 @@
 # A compiler for the TEST language written in Rust
 
 # How to use
-Use 'git clone git@github.com:zel2023/rust_compiler.git' command to clone this repo.
-Use 'cargo run' to  start the compiler
+1.Use 'git clone https://github.com/zel2023/rust_compiler.git' command to clone this repo.
+2.Use 'cargo run' to  start the compiler
 
 # File Orginization
   There are three folders: 'dataset', 'src' and 'target'.
