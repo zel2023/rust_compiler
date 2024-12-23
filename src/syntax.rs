@@ -386,9 +386,10 @@ impl Compiler {
         // if es != 0 {
         //     return es;
         // }
+        self.es=es;
         println!("==语法、语义分析及代码生成程序结果==");
         match self.es {
-            0 => println!("语法、语义分析成功并抽象机汇编生成代码!"),
+            0 => println!("语法、语义分析成功并成功生成中间代码!"),
             10 => println!("打开文件 {} 失败!", self.tokenfile),
             1 => println!("缺少{{!"),
             2 => println!("缺少}}!"),
