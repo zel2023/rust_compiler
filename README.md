@@ -64,8 +64,7 @@ The last declaration in the program must be a function definition named main, wi
 
 ```
 
-
-
+# Intermediate Code Interpretation of the TEST Language
 ```
 (1)LOAD:    Load data from a relative position of the current base address to the top of the stack.  
 (2)LOADI:   Load an immediate value onto the top of the stack.  
@@ -92,8 +91,6 @@ The last declaration in the program must be a function definition named main, wi
 (23)ENTER:  Allocate stack space for the called function.  
 (24)CAL:    Call a function, saving the current base address and return address, then jump to the function's entry point.  
 (25)PAS:    Pass parameters by transferring them from the stack top to the function's call stack space.  
-
-
 ```
 
 
