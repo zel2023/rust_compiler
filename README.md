@@ -27,6 +27,7 @@
 4.Delimiters: Single delimiters such as +, -, *, /, (, ), ;, ,, >, <, {, }, !, etc. are marked directly with the corresponding delimiter. Double delimiters such as >=, <=, !=, ==, &&, || are marked directly with the corresponding double delimiter.  
 5.Comment Symbols: Enclosed by /** and */.  
 The regular grammar rules for each type of lexical symbol in the TEST language are as follows:  
+
 ```
 (1) <ID>∷=<letter>|<ID><letter>|<ID><digit>
 (2) <NUM>∷=<digit>|<NUM> <digit>
@@ -39,6 +40,7 @@ The regular grammar rules for each type of lexical symbol in the TEST language a
 ```
 
 # Syntax Rules of the TEST Language  
+The last declaration in the program must be a function definition named main, with no prototype declaration. Convention: The definition of called functions must appear before the definition of the calling function.  
 ```
 (1). <program> →{ fun_declaration }<main_declaration> 
 (2). <fun_declaration> → function ID’(‘ ‘ )’< function_body> 
