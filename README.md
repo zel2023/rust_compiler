@@ -2,7 +2,7 @@
 
 # How to use
   1.Use 'git clone https://github.com/zel2023/rust_compiler.git' command to clone this repo.  
-  2.Use 'cargo run' to  start the compiler.
+  2.Use `cargo build` and `cargo run` to  start the compiler.
 
 # File Orginization  
   There are three folders: 'dataset', 'src' and 'target'.
