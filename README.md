@@ -64,3 +64,40 @@ The last declaration in the program must be a function definition named main, wi
 
 ```
 
+
+
+```
+(1)LOAD:    Load data from a relative position of the current base address to the top of the stack.  
+(2)LOADI:   Load an immediate value onto the top of the stack.  
+(3)STO:     Store the top of the stack data into a relative position of the current base address.  
+(4)STI:     Store the top of the stack data into the address located just below the top of the stack.  
+(5)ADD:     Pop the top two stack values, compute their sum, and push the result onto the stack.  
+(6)SUB:     Pop the top two stack values, compute the result of the first minus the second, and push it onto the stack.  
+(7)MULT:    Pop the top two stack values, compute their product, and push the result onto the stack.  
+(8)DIV:     Pop the top two stack values, compute the result of the first divided by the second, and push it onto the stack.  
+(9)BR:      Unconditionally jump to the specified instruction address.  
+(10)BRF:    Conditional jump: if the top of the stack is 0, jump to the specified instruction address.  
+(11)EQ:     Compare the top two stack values for equality. Push 1 if equal, otherwise push 0.  
+(12)NOTEQ:  Compare the top two stack values for inequality. Push 1 if not equal, otherwise push 0.  
+(13)GT:     Compare the top two stack values. Push 1 if the first is greater than the second, otherwise push 0.  
+(14)LES:    Compare the top two stack values. Push 1 if the first is less than the second, otherwise push 0.  
+(15)GE:     Compare the top two stack values. Push 1 if the first is greater than or equal to the second, otherwise push 0.  
+(16)LE:     Compare the top two stack values. Push 1 if the first is less than or equal to the second, otherwise push 0.  
+(17)AND:    Pop the top two stack values and compute their logical AND. Push the result onto the stack.  
+(18)OR:     Pop the top two stack values and compute their logical OR. Push the result onto the stack.  
+(19)NOT:    Perform logical NOT on the top of the stack. Push the result back onto the stack.  
+(20)IN:     Read data from standard input and push it onto the stack.  
+(21)OUT:    Pop the top of the stack and output its value to the standard output device.  
+(22)RETURN: Return from the current function, freeing its stack space and restoring the base address and instruction pointer.  
+(23)ENTER:  Allocate stack space for the called function.  
+(24)CAL:    Call a function, saving the current base address and return address, then jump to the function's entry point.  
+(25)PAS:    Pass parameters by transferring them from the stack top to the function's call stack space.  
+
+
+```
+
+
+
+
+
+
