@@ -25,7 +25,6 @@
 2.Keywords (which are a subset of identifiers): if, else, for, while, do, int, write, read, switch, case, break, default. Identified keywords are marked directly with the keyword itself. Keywords are case-insensitive.  
 3.Unsigned Integers: Composed of digits and marked as NUM.  
 4.Delimiters: Single delimiters such as +, -, *, /, (, ), ;, ,, >, <, {, }, !, etc. are marked directly with the corresponding delimiter. Double delimiters such as >=, <=, !=, ==, &&, || are marked directly with the corresponding double delimiter.  
-5.Comment Symbols: Enclosed by /** and */.  
 The regular grammar rules for each type of lexical symbol in the TEST language are as follows:  
 
 ```
@@ -35,8 +34,6 @@ The regular grammar rules for each type of lexical symbol in the TEST language a
 (4) <digit>∷=1|2|…|9|0
 (5) <singleword>∷= + | - | * | / | = |（|）|{ | }|：|，|；| ＜ | ＞| !|&| |
 (6) <doubleword>∷= ＞= |＜= | != | ==|&&| ||
-(7) <commend_first>∷= /*
-(8) <commend_last>∷= */
 ```
 
 # Syntax Rules of the TEST Language  
